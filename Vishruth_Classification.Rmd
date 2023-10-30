@@ -1,0 +1,456 @@
+---
+title: "Classification"
+author: "Vishruth Reddy"
+date: "2022-12-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, load_tidyverse}
+library(tidyverse)
+library(dplyr) 
+```
+
+```{r, read_final_data}
+df <- readr::read_csv("fall2022_finalproject.csv", col_names = TRUE)
+```
+
+```{r, show_data_glimpse}
+df %>% glimpse()
+```
+
+```{r}
+df
+```
+
+```{r, show_derived_features}
+df <- df %>% 
+  mutate(x5 = 1 - (x1 + x2 + x3 + x4),
+         w = x2 / (x3 + x4),
+         z = (x1 + x2) / (x5 + x4),
+         t = v1 * v2) 
+
+df <- df %>% 
+  mutate(y = boot::logit(output)) 
+
+df <- df %>% 
+  mutate(outcome = ifelse(output < 0.33, 'event', 'non_event'),
+         outcome = factor(outcome, levels = c("event", "non_event"))) %>% 
+  glimpse()
+```
+
+```{r}
+df <- df %>% 
+  mutate(outcome_num = ifelse(outcome == 'event', 1, 0)) %>%
+  glimpse()
+```
+
+```{r}
+glm_mod01= glm(formula = outcome_num ~ x1 + x2 + x3 + x4 + v1 + v2 + v3 + v4 + v5 + m, family = 'binomial', data = df)
+glm_mod02= glm(formula = outcome_num ~ m:(x1 + x2 + x3 + x4 + v1 + v2 + v3 + v4 + v5 ), family = 'binomial', data = df)
+glm_mod03= glm(formula = outcome_num ~ (x1  + x2 + x3 + x4 + v1 + v2 + v3 + v4 + v5 )^2, family = 'binomial', data = df)
+
+glm_mod04= glm(formula = outcome_num ~ x1 + x3 + x4  + v2 + v3 + v4 + v5 + m + w + z + t + x5, family = 'binomial', data = df)
+glm_mod05= glm(formula = outcome_num ~ m:(x1 + x3 + x4  + v2 + v3 + v4 + v5 + m + w + z + t + x5), family = 'binomial', data = df)
+glm_mod06= glm(formula = outcome_num ~ (x1  + x3 + x4 + v2 + v3 + v4 + v5 + w + z + t + x5)^2, family = 'binomial', data = df)
+
+
+glm_mod07= glm(formula = outcome_num ~ x1 + x2 + x3 + x4, family = 'binomial', data = df)
+glm_mod08= glm(formula = outcome_num ~ v1 + v2 + v3 + v4 + v5, family = 'binomial', data = df)
+glm_mod09= glm(formula = outcome_num ~  splines::ns(z , 3) * (x5 + w + t ), family = 'binomial', data = df)
+
+```
+
+```{r}
+broom :: glance(glm_mod01)
+broom :: glance(glm_mod02)
+broom :: glance(glm_mod03)
+broom :: glance(glm_mod04)
+broom :: glance(glm_mod05)
+broom :: glance(glm_mod06)
+broom :: glance(glm_mod07)
+broom :: glance(glm_mod08)
+broom :: glance(glm_mod09)
+```
+
+
+```{r}
+coefplot::coefplot(glm_mod06)
+coefplot::coefplot(glm_mod09)
+coefplot::coefplot(glm_mod04)
+```
+Which of the 9 models is the best? model 6 is the best as it has the lowest value of RMSE and AIC.
+• What performance metric did you use to make your selection? We used the AIC, BIC, R squared and the RMSE criteria to evaulate the performance of the models.
+
+• How do the coefficient summaries compare between the top 3?
+For the top 3 models, coefficients of the V variables seem to be close to zero i.e v1, v2, v3, v4, v5. The coefficients of X variables are non zero and henvce important. 
+• Which inputs seem important?
+The X (x1, x2, x3, x4) variables and the derived variables i.e w,z,t and x5 seeem important
+
+
+Bayesian Generalised LM's
+
+```{r}
+Xmat_06 = model.matrix(outcome_num ~ (x1  + x3 + x4 + v2 + v3 + v4 + v5 + w + z + t + x5)^2 , data = df)
+Xmat_09 = model.matrix( outcome_num ~  splines::ns(z , 3) * (x5 + w + t ), data = df)
+```
+
+```{r}
+info_06 <- list(
+  yobs = df$outcome_num,
+  design_matrix = Xmat_06,
+  mu_beta = 0,
+  tau_beta = 4.5
+)
+
+info_09 <- list(
+  yobs = df$outcome_num,
+  design_matrix = Xmat_09,
+  mu_beta = 0,
+  tau_beta = 4.5
+)
+```
+
+```{r}
+logistic_logpost <- function(unknowns, my_info)
+{
+  # extract the design matrix and assign to X
+  X <- my_info$design_matrix
+  
+  # calculate the linear predictor
+  eta <- X %*% as.matrix(unknowns)
+  
+  # calculate the event probability
+  mu <- boot::inv.logit(eta)
+  
+  # evaluate the log-likelihood
+  log_lik <- sum(dbinom( x = my_info$y, size =1 , prob = mu, log = TRUE))
+  
+  # evaluate the log-prior
+  log_prior <- sum(dnorm(x = unknowns,mean = my_info$mu_beta, sd = my_info$tau_beta, log = TRUE))
+  
+  # sum together
+  
+  log_lik + log_prior
+}
+```
+
+
+
+```{r}
+my_laplace <- function(start_guess, logpost_func, ...)
+{
+  # code adapted from the `LearnBayes`` function `laplace()`
+  fit <- optim(start_guess,
+               logpost_func,
+               gr = NULL,
+               ...,
+               method = "BFGS",
+               hessian = TRUE,
+               control = list(fnscale = -1, maxit = 5001))
+  
+  mode <- fit$par
+  post_var_matrix <- -solve(fit$hessian)
+  p <- length(mode)
+  int <- p/2 * log(2 * pi) + 0.5 * log(det(post_var_matrix)) + logpost_func(mode, ...)
+  # package all of the results into a list
+  list(mode = mode,
+       var_matrix = post_var_matrix,
+       log_evidence = int,
+       converge = ifelse(fit$convergence == 0,
+                         "YES", 
+                         "NO"),
+       iter_counts = as.numeric(fit$counts[1]))
+}
+```
+
+
+```{r}
+laplace_06 <- my_laplace(rep(0,ncol(info_06$design_matrix)), logistic_logpost, info_06)
+laplace_09 <- my_laplace(rep(0,ncol(info_09$design_matrix)), logistic_logpost, info_09)
+```
+
+```{r}
+pos_mode_mod06 <- laplace_06$mode
+pos_sd_mod06 <- sqrt(diag(laplace_06$var_matrix))
+
+pos_mode_mod06
+pos_sd_mod06
+
+pos_mode_mod09 <- laplace_09$mode
+pos_sd_mod09 <- sqrt(diag(laplace_09$var_matrix))
+
+pos_mode_mod09
+pos_sd_mod09
+```
+
+```{r}
+exp(laplace_09$log_evidence - laplace_06$log_evidence )
+```
+
+```{r}
+viz_post_coefs <- function(post_means, post_sds, xnames)
+{
+  tibble::tibble(
+    mu = post_means,
+    sd = post_sds,
+    x = xnames
+  ) %>% 
+    mutate(x = factor(x, levels = xnames)) %>% 
+    ggplot(mapping = aes(x = x)) +
+    geom_hline(yintercept = 0, color = 'grey', linetype = 'dashed') +
+    geom_point(mapping = aes(y = mu)) +
+    geom_linerange(mapping = aes(ymin = mu - 2 * sd,
+                                 ymax = mu + 2 * sd,
+                                 group = x)) +
+    labs(x = 'feature', y = 'coefficient value') +
+    coord_flip() +
+    theme_bw()
+}
+```
+
+```{r}
+viz_post_coefs(laplace_09$mode[1:ncol(Xmat_09)], sqrt(diag(laplace_09$var_matrix))[1:ncol(Xmat_09)], colnames(Xmat_09))
+
+```
+
+Bayesian model intervals
+
+```{r}
+generate_lm_post_samples <- function(mvn_result, length_beta, num_samples)
+{
+  MASS::mvrnorm(n = num_samples,
+                mu = mvn_result$mode,
+                Sigma = mvn_result$var_matrix) %>% 
+    as.data.frame() %>% tibble::as_tibble() %>% 
+    purrr::set_names(c(sprintf("beta_%02d", 0:(length_beta-1)), "varphi")) %>% 
+    mutate(sigma = exp(varphi))
+}
+```
+
+```{r}
+post_lm_pred_samples <- function(Xnew, Bmat, sigma_vector)
+{
+  M <- nrow(Xnew)
+  S <- nrow(Bmat)
+  
+  Umat <- Xnew %*% t(Bmat)
+  
+  Rmat <- matrix(rep(sigma_vector, M), nrow(Xnew) , byrow = TRUE)
+  
+  Zmat <- matrix(rnorm(M*S), nrow(Xnew) , byrow = TRUE)
+
+  Ymat <- Umat + Rmat * Zmat
+ 
+  list(Umat = Umat, Ymat = Ymat)
+}
+```
+
+```{r}
+make_post_lm_pred <- function(Xnew, post)
+{
+  Bmat <- post %>% dplyr::select(starts_with("beta")) %>% as.matrix()
+  
+  sigma_vector <- post %>% pull(sigma)
+  
+  post_lm_pred_samples(Xnew, Bmat, sigma_vector)
+}
+```
+
+```{r}
+summarize_lm_pred_from_laplace <- function(mvn_result, Xtest, num_samples)
+{
+  post <- generate_lm_post_samples(mvn_result, ncol(Xtest), num_samples)
+ 
+  pred_test <- make_post_lm_pred(Xtest, post)
+  
+  mu_avg <- rowMeans(pred_test$Umat)
+  y_avg <- rowMeans(pred_test$Ymat)
+  
+  mu_lwr <- apply(pred_test$Umat, 1, stats::quantile, probs = 0.025)
+  mu_upr <- apply(pred_test$Umat, 1, stats::quantile, probs = 0.975)
+  y_lwr <- apply(pred_test$Ymat, 1, stats::quantile, probs = 0.025)
+  y_upr <- apply(pred_test$Ymat, 1, stats::quantile, probs = 0.975)
+  
+  tibble::tibble(
+    mu_avg = mu_avg,
+    mu_lwr = mu_lwr,
+    mu_upr = mu_upr,
+    y_avg = y_avg,
+    y_lwr = y_lwr,
+    y_upr = y_upr
+  ) %>% 
+    tibble::rowid_to_column("pred_id")
+}
+```
+
+
+
+```{r}
+generate_glm_post_samples <- function(mvn_result, num_samples)
+{
+  length_beta <- length(mvn_result$mode)
+  
+  beta_samples <-  MASS::mvrnorm(n = num_samples,
+                mu = mvn_result$mode,
+                Sigma = mvn_result$var_matrix) 
+  beta_samples %>% 
+    as.data.frame() %>% tibble::as_tibble() %>% 
+    purrr::set_names(sprintf("beta_%02d", (1:length_beta) - 1))
+}
+```
+
+
+```{r}
+post_logistic_pred_samples <- function(Xnew, Bmat)
+{
+  eta_mat <-  Xnew%*%t(Bmat)
+  
+  mu_mat <-  boot::inv.logit(eta_mat)
+  
+  list(eta_mat = eta_mat, mu_mat = mu_mat)
+}
+```
+
+```{r}
+summarize_logistic_pred_from_laplace <- function(mvn_result, Xtest, num_samples)
+{
+  betas <- generate_glm_post_samples(mvn_result, num_samples)
+  
+  betas <- as.matrix(betas)
+  
+  pred_test <-  post_logistic_pred_samples(Xtest, betas)
+  
+  mu_avg <- rowMeans(pred_test$mu_mat)
+  
+  mu_q05 <- apply(pred_test$mu_mat, 1, stats::quantile, probs = 0.05)
+  mu_q95 <- apply(pred_test$mu_mat, 1, stats::quantile, probs = 0.95)
+  
+  tibble::tibble(
+    mu_avg = mu_avg,
+    mu_q05 = mu_q05,
+    mu_q95 = mu_q95
+  ) %>% 
+    tibble::rowid_to_column("pred_id")
+}
+```
+
+```{r}
+viz_grid_expanded <- expand.grid(x1 = seq(min(df$x1), max(df$x1), length.out=101),
+                        x3 = seq(min(df$x2), max(df$x2), length.out=6),
+                        x4 = median(df$x4),
+                        v2 = median(df$v2),
+                        v3 = median(df$v3),
+                        v4 = median(df$v4),
+                        v5 = median(df$v5),
+                        w = median(df$w),
+                        z = median(df$z),
+                        t = median(df$t),
+                        x5 = median(df$x5),
+                        m = c("A", "B", "C", "D", "E"),
+                        KEEP.OUT.ATTRS = FALSE, 
+                        stringsAsFactors = FALSE) %>% 
+  as.data.frame() %>% tibble::as_tibble()
+
+viz_grid_expanded %>% glimpse()
+```
+
+
+```{r}
+viz_grid_bayes_glm_mod01 <- viz_grid_expanded
+viz_grid_bayes_glm_mod02 <-  expand.grid(z = seq(min(df$z), max(df$z), length.out=101),
+                        x5 = seq(min(df$x5), max(df$x5), length.out=6),
+                        w = median(df$w),
+                        t = median(df$t),
+                        m = c("A", "B", "C", "D", "E"),
+                        KEEP.OUT.ATTRS = FALSE, 
+                        stringsAsFactors = FALSE) %>% 
+  as.data.frame() %>% tibble::as_tibble()
+```
+
+```{r}
+print(viz_grid_expanded)
+```
+
+
+```{r}
+bayes_glm_mod01<- model.matrix(~(x1  + x3 + x4 + v2 + v3 + v4 + v5 + w + z + t + x5)^2, data = viz_grid_bayes_glm_mod01)
+bayes_glm_mod02<- model.matrix(~ splines::ns(z , 3) * (x5 + w + t ), data = viz_grid_bayes_glm_mod02)
+```
+
+
+```{r}
+set.seed(8123) 
+
+post_pred_summary_01 <- summarize_logistic_pred_from_laplace(laplace_06, Xmat_06, 1500)
+post_pred_summary_02 <- summarize_logistic_pred_from_laplace(laplace_09, Xmat_09, 1500)
+
+```
+
+
+```{r}
+print(post_pred_summary_01)
+```
+
+
+```{r}
+viz_bayes_logpost_preds_01 <- function(post_pred_summary, input_df)
+{
+  post_pred_summary %>% 
+    left_join(input_df %>% tibble::rowid_to_column('pred_id'),
+              by = 'pred_id') %>% 
+    ggplot(mapping = aes(x = x1)) +
+    geom_ribbon(mapping = aes(ymin = mu_q05,
+                              ymax = mu_q95),
+                alpha = 0.25) +
+    geom_line(mapping = aes(y = mu_avg),
+              size = 0.5) +
+    facet_wrap( ~ x3, labeller = 'label_both') +
+    coord_cartesian(ylim = c(-1,1))+
+    labs(y = "event probability") +
+    theme_bw()
+}
+```
+
+
+```{r}
+viz_bayes_logpost_preds_01(post_pred_summary_01,viz_grid_bayes_glm_mod01)
+```
+
+```{r}
+print(viz_grid_bayes_glm_mod02)
+```
+
+
+```{r}
+viz_bayes_logpost_preds_02 <- function(post_pred_summary, input_df)
+{
+  post_pred_summary %>% 
+    left_join(input_df %>% tibble::rowid_to_column('pred_id'),
+              by = 'pred_id') %>% 
+    ggplot(mapping = aes(x = z)) +
+    geom_ribbon(mapping = aes(ymin = mu_q05,
+                              ymax = mu_q95),
+                alpha = 0.25) +
+    geom_line(mapping = aes(y = mu_avg),
+              size = 0.5) +
+    facet_wrap( ~ x5, labeller = 'label_both') +
+    coord_cartesian(ylim = c(-1,1))+
+    labs(y = "event probability") +
+    theme_bw()
+}
+```
+
+```{r}
+viz_bayes_logpost_preds_02(post_pred_summary_02,viz_grid_bayes_glm_mod02)
+```
+
+You MUST state if the predictive trends are consistent between the 2 selected generalized linear models.
+
+They are consistent as the trends are similar.
+
+

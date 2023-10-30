@@ -1,0 +1,216 @@
+---
+title: "Optimisation"
+author: "Vishruth Reddy"
+date: "2022-12-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+After you have selected the best performing models consider:
+• Does the model performance improve when the derived features in the “expanded feature” set are included?
+yes it does.
+• Identify the most important variables associated with your best performing models.
+z, w, t, x5 
+• Visualize the predicted logit-transformed response as a function of your identified most important
+variables.
+• Visualize the predicted probability of the EVENT as a function of your identified most important variables.
+• Based on your visualizations, what input settings are associated with minimizing the logit-transformed response?
+• Do the optimal input settings vary across the values of the categorical variable?
+• BONUS +10 points: Optimize the inputs/features for 2 values of the categorical variable using optim(). 
+
+```{r, read_final_data}
+df <- readr::read_csv("fall2022_finalproject.csv", col_names = TRUE)
+```
+
+```{r}
+library(dplyr)
+```
+
+
+```{r, show_data_glimpse}
+df %>% glimpse()
+```
+
+
+```{r, show_derived_features}
+df <- df %>% 
+  mutate(x5 = 1 - (x1 + x2 + x3 + x4),
+         w = x2 / (x3 + x4),
+         z = (x1 + x2) / (x5 + x4),
+         t = v1 * v2)
+```
+
+
+```{r, show_logit_transform}
+df <- df %>% 
+  mutate(y = boot::logit(output)) 
+```
+
+```{r, show_binary_outcome}
+df <- df %>% 
+  mutate(outcome = ifelse(output < 0.33, 'event', 'non_event'),
+         outcome = factor(outcome, levels = c("event", "non_event"))) 
+```
+
+
+
+```{r}
+df
+```
+
+```{r}
+library(caret)
+```
+
+```{r}
+mars_expanded <- readr::read_rds("mars_reg.rds")
+xgb_expanded_glm <- readr::read_rds("xgb_class.rds")
+```
+
+```{r}
+ctrl_roc <- trainControl( method = "repeatedcv", number = 5, repeats = 3,
+                         summaryFunction = twoClassSummary,
+                         classProbs = TRUE,
+                         savePredictions = TRUE)
+
+```
+
+```{r}
+marsGrid <- expand.grid(
+  degree = 1:3, 
+  nprune = seq(2, 100, length.out = 10) %>% floor()
+  )
+```
+
+```{r}
+mars_expanded_roc<- caret::train(outcome ~ x1  + x3 + x4  + v2 + v3 + v4 + v5 + m + w + z + t + x5,
+                            data = df,
+                            method = "earth", 
+                            tuneGrid = marsGrid,
+                            preProcess = c("center", "scale"),
+                            metric = "ROC",
+                            trControl = ctrl_roc)
+
+```
+
+```{r}
+mars_expanded_roc
+```
+
+```{r}
+model_reg <- mars_expanded
+model_reg
+```
+
+
+```{r}
+model_class <- xgb_expanded_glm
+model_class
+```
+
+```{r}
+reg_preds <- predict(model_reg, df)
+reg_preds
+```
+
+
+```{r}
+dim(df)
+dim(reg_preds)
+```
+
+```{r}
+df['probs'] <- reg_preds
+```
+
+```{r}
+df
+```
+
+
+```{r}
+df %>% ggplot(mapping=aes(x = x5, y = probs)) + geom_point()
+df %>% ggplot(mapping=aes(x = w, y = probs)) + geom_point()
+df %>% ggplot(mapping=aes(x = z, y = probs)) + geom_point()
+df %>% ggplot(mapping=aes(x = t, y = probs)) + geom_point()
+
+```
+
+
+
+```{r}
+class_preds <- predict(model_class, df, type = 'prob')
+class_preds
+```
+
+
+```{r}
+df['event'] <- class_preds$event
+df['non_event'] <- class_preds$non_event
+```
+
+```{r}
+df
+```
+
+
+
+
+
+```{r}
+df %>% ggplot(mapping=aes(x = x5, y = event)) + geom_point()
+df %>% ggplot(mapping=aes(x = w, y = event)) + geom_point()
+df %>% ggplot(mapping=aes(x = z, y = event)) + geom_point()
+df %>% ggplot(mapping=aes(x = t, y = event)) + geom_point()
+
+```
+
+```{r}
+test_df <- readr::read_csv("fall2022_holdout_inputs.csv", col_names = TRUE)
+
+```
+
+
+```{r}
+test_df
+
+```
+
+
+
+```{r}
+test_df_ <- test_df %>% 
+  mutate(x5 = 1 - (x1 + x2 + x3 + x4),
+         w = x2 / (x3 + x4),
+         z = (x1 + x2) / (x5 + x4),
+         t = v1 * v2)
+test_df_
+```
+
+
+```{r}
+
+test_class_preds <- predict(xgb_expanded_glm, test_df_)
+test_class_prob <- predict(xgb_expanded_glm, test_df_, type = 'prob')
+test_class_y <- predict(xgb_expanded_glm, test_df_, type = 'raw')
+```
+
+
+
+```{r}
+test_reg_preds <- predict(model_reg, test_df_)
+```
+
+
+```{r}
+final_df <- data.frame('id' = seq(1,nrow(test_df_)), 'outcome' = test_class_preds, 'probability' =  test_class_prob$event, 'y' = test_reg_preds)
+final_df
+
+```
+
+```{r}
+write.csv(final_df, "preds.csv", row.names=FALSE)
+```

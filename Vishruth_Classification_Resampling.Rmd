@@ -1,0 +1,571 @@
+---
+title: "Classification_Resampling"
+author: "Vishruth Reddy"
+date: "2022-12-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(glmnet)
+library(dplyr)
+```
+
+```{r, load_tidyverse}
+library(tidyverse)
+```
+
+```{r, read_final_data}
+df <- readr::read_csv("fall2022_finalproject.csv", col_names = TRUE)
+```
+
+```{r, show_data_glimpse}
+df %>% glimpse()
+```
+
+```{r, show_derived_features}
+df <- df %>% 
+  mutate(x5 = 1 - (x1 + x2 + x3 + x4),
+         w = x2 / (x3 + x4),
+         z = (x1 + x2) / (x5 + x4),
+         t = v1 * v2) %>% 
+  glimpse()
+```
+
+
+```{r, show_logit_transform}
+df <- df %>% 
+  mutate(y = boot::logit(output)) %>% 
+  glimpse()
+```
+
+
+```{r, show_binary_outcome}
+df <- df %>% 
+  mutate(outcome = ifelse(output < 0.33, 'event', 'non_event'),
+         outcome = factor(outcome, levels = c("event", "non_event"))) %>% 
+  glimpse()
+```
+
+
+```{r}
+df <- df %>% 
+  mutate(outcome_num = ifelse(outcome == 'event', 1, 0)) %>%
+  glimpse()
+```
+
+```{r}
+df
+```
+
+
+
+
+
+```{r}
+X01_glmnet <- model.matrix( outcome_num ~ x1 + x2 + x3 + x4 + v1 + v2 + v3 + v4 + v5 +  m - 1, data = df)
+X02_glmnet <- model.matrix( outcome_num ~ x1 + x3 + x4 + v2 + v3 + v4 + v5 + m + w + z +  t + x5 - 1, data=df)
+X03_glmnet <- model.matrix( outcome_num ~ (x1  + x3 + x4 + v2 + v3 + v4 + v5 + w + z + t + x5)^2  - 1 , data=df)
+X04_glmnet <- model.matrix( outcome_num ~  splines::ns(z , 3) * (x5 + w + t ) - 1, data=df)
+
+```
+
+
+```{r}
+dim(X03_glmnet)
+dim(X04_glmnet)
+```
+
+```{r}
+loss_ridge <- function(betas, my_info)
+{
+  X <-my_info$design_matrix
+  
+  mu <-X%*% betas
+  
+  MSE <-mean((my_info$yobs-mu)^2)
+  
+  penalty <-sum((betas)^2)
+  
+  ((1/2)*MSE) + (my_info$lambda * penalty)
+  
+}
+```
+
+
+```{r}
+lambda_grid <-  exp(seq(log(0.001),log(1000),length.out=101))
+```
+
+
+```{r}
+viz_grid_base <- expand.grid(x1 = seq(min(df$x1), max(df$x1), length.out=75),
+                        x2 = seq(min(df$x2), max(df$x2), length.out=6),
+                        x3 = median(df$x3),
+                        x4 = median(df$x4),
+                        v1 = median(df$v1),
+                        v2 = median(df$v2),
+                        v3 = median(df$v3),
+                        v4 = median(df$v4),
+                        v5 = median(df$v5),
+                        m = c("A", "B", "C", "D", "E"),
+                        KEEP.OUT.ATTRS = FALSE, 
+                        stringsAsFactors = FALSE) %>% 
+  as.data.frame() %>% tibble::as_tibble()
+```
+
+
+```{r}
+viz_grid_expanded <- expand.grid(x1 = seq(min(df$x1), max(df$x1), length.out=75),
+                        x3 = seq(min(df$x2), max(df$x2), length.out=6),
+                        x4 = median(df$x4),
+                        v2 = median(df$v2),
+                        v3 = median(df$v3),
+                        v4 = median(df$v4),
+                        v5 = median(df$v5),
+                        w = median(df$w),
+                        z = median(df$z),
+                        t = median(df$t),
+                        x5 = median(df$x5),
+                        m = c("A", "B", "C", "D", "E"),
+                        KEEP.OUT.ATTRS = FALSE, 
+                        stringsAsFactors = FALSE) %>% 
+  as.data.frame() %>% tibble::as_tibble()
+
+```
+
+
+```{r}
+
+lasso_01_cv_tune <- cv.glmnet(X01_glmnet, df$outcome_num, lambda = lambda_grid, nfolds = 5, family="binomial")
+lasso_02_cv_tune <- cv.glmnet(X02_glmnet, df$outcome_num, lambda = lambda_grid, nfolds = 5, family="binomial")
+lasso_03_cv_tune <- cv.glmnet(X03_glmnet, df$outcome_num, lambda = lambda_grid, nfolds = 5,family="binomial")
+lasso_04_cv_tune <- cv.glmnet(X04_glmnet, df$outcome_num, lambda = lambda_grid, nfolds = 5, family="binomial")
+
+```
+
+```{r}
+plot(lasso_01_cv_tune)
+plot(lasso_02_cv_tune)
+plot(lasso_03_cv_tune)
+plot(lasso_04_cv_tune)
+```
+
+
+```{r}
+coef(lasso_01_cv_tune)
+coef(lasso_02_cv_tune)
+coef(lasso_04_cv_tune)
+coef(lasso_04_cv_tune)
+```
+
+```{r}
+lasso_01_cv_tune
+dim(X01_glmnet)
+dim(viz_grid_base)
+```
+
+
+```{r}
+pred_lasso_01 <- predict(lasso_01_cv_tune, X01_glmnet, type = 'class')
+pred_lasso_02 <- predict(lasso_02_cv_tune, X02_glmnet, type = 'class')
+pred_lasso_03 <- predict(lasso_03_cv_tune, X03_glmnet, type = 'class')
+pred_lasso_04 <- predict(lasso_04_cv_tune, X04_glmnet, type = 'class')
+```
+
+```{r}
+dim(df)
+nrow(df)
+c = 0
+for (i in seq(1, nrow(df), by=1)) {
+
+  if (df$outcome_num[i] == strtoi(pred_lasso_01[i]))
+  {
+    c = c+ 1
+  }
+}
+print(c/nrow(df))
+c = 0
+for (i in seq(1, nrow(df), by=1)) {
+
+  if (df$outcome_num[i] == strtoi(pred_lasso_02[i]))
+  {
+    c = c+ 1
+  }
+}
+print(c/nrow(df))
+c = 0
+for (i in seq(1, nrow(df), by=1)) {
+
+  if (df$outcome_num[i] == strtoi(pred_lasso_03[i]))
+  {
+    c = c+ 1
+  }
+}
+print(c/nrow(df))
+c = 0
+for (i in seq(1, nrow(df), by=1)) {
+  if (df$outcome_num[i] == strtoi(pred_lasso_04[i]))
+  {
+    c = c+ 1
+  }
+}
+print(c/nrow(df))
+```
+
+
+Tune Bayesian Models.
+
+```{r}
+library(caret)
+```
+
+
+```{r}
+my_ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3 )
+my_metric="Accuracy"
+```
+
+```{r}
+enet_grid <- expand.grid(alpha = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+                         lambda = exp(seq(log(0.0004769061),log(0.0476906052),length.out=25)) )
+```
+
+
+```{r}
+set.seed(1234)
+
+bayes_mod01 <- caret::train(outcome ~ (x2+x3+x2*x3+I(x2^2)+I(x3^2))*x1, 
+                             data = df , 
+                             method='glmnet', 
+                             metric = my_metric, 
+                             preProcess=c("center", "scale"),
+                             trControl = my_ctrl, 
+                            tuneGrid=enet_grid)
+
+```
+
+```{r}
+
+set.seed(1234)
+
+bayes_mod02 <- caret::train( outcome ~ (x1  + x3 + x4 + v2 + v3 + v4 + v5 + w + z + t + x5)^2, 
+                             data = df , 
+                             method='glmnet', 
+                             metric = my_metric, 
+                             preProcess=c("center", "scale"),
+                             trControl = my_ctrl,
+                            tuneGrid=enet_grid)
+
+```
+
+```{r}
+bayes_mod01
+```
+
+```{r}
+bayes_mod02
+```
+
+
+```{r}
+plot(bayes_mod01)
+plot(bayes_mod02)
+```
+
+```{r}
+plot(varImp(bayes_mod01))
+plot(varImp(bayes_mod02))
+
+```
+
+
+```{r}
+coefplot::coefplot(bayes_mod01$finalModel)
+coefplot::coefplot(bayes_mod02$finalModel)
+```
+
+
+```{r}
+pred_enet_bayes_01 <- predict(bayes_mod01, viz_grid_base, type = 'prob')
+pred_enet_bayes_02 <- predict(bayes_mod02, viz_grid_expanded, type = 'prob')
+```
+
+
+Neural Network 
+
+```{r}
+nnet_grid <- expand.grid(size = c(5, 9, 13, 17), decay = exp(seq( -6, 0, length.out = 11)))
+```
+
+```{r}
+set.seed(1234)
+
+nnet_base_glm <- caret::train(outcome ~ x1 + x2 + x3 + x4 + v1 + v2 + v3 + v4 + v5 + m,
+                             data = df,
+                             method = 'nnet',
+                             metric = my_metric,
+                             preProcess = c('center', 'scale'),
+                             trControl = my_ctrl,
+                             trace = FALSE,
+                             tuneGrid = nnet_grid)
+```
+
+
+```{r}
+set.seed(1234)
+
+nnet_expanded_glm <- caret::train(outcome ~ x1 + x3 + x4 + v2 + v3 + v4 + v5 + w + z + t + x5 + m,
+                             data = df,
+                             method = 'nnet',
+                             metric = my_metric,
+                             preProcess = c('center', 'scale'),
+                             trControl = my_ctrl,
+                             trace = FALSE,
+                             tuneGrid = nnet_grid)
+```
+
+
+```{r}
+nnet_base_glm
+```
+
+
+```{r}
+nnet_expanded_glm
+```
+
+```{r}
+plot(xTrans = log, nnet_base_glm)
+plot(xTrans = log, nnet_expanded_glm)
+```
+
+```{r}
+print(nnet_base_glm$bestTune)
+print(nnet_expanded_glm$bestTune)
+```
+
+```{r}
+predict(nnet_base_glm, viz_grid_base, type = 'prob')
+predict(nnet_expanded_glm, viz_grid_expanded, type = 'prob')
+```
+
+Random Forest 
+
+
+```{r}
+set.seed(1234)
+rf_base_glm <- caret::train(outcome ~ x1 + x2 + x3 + x4 + v1 + v2 + v3 + v4 + v5 + m,
+                      method = 'rf',
+                      data =  df,
+                      importance = TRUE,
+                      metric = my_metric,
+                      trControl = my_ctrl)
+```
+
+
+
+```{r}
+set.seed(1234)
+rf_expanded_glm <- caret::train( outcome ~ x1 + x3 + x4 + v2 + v3 + v4 + v5 + w + z + t + x5 + m,
+                      method = 'rf',
+                      data = df,
+                      importance = TRUE,
+                      metric = my_metric,
+                      trControl = my_ctrl)
+```
+
+```{r}
+rf_base_glm
+```
+
+
+```{r}
+rf_expanded_glm
+```
+
+
+```{r}
+plot(xTrans = log, rf_base_glm)
+plot(xTrans = log, rf_expanded_glm)
+```
+
+
+```{r}
+plot(varImp(rf_base_glm))
+plot(varImp(rf_expanded_glm))
+```
+
+
+```{r}
+predict(rf_base_glm, viz_grid_base, type = "prob")
+predict(rf_base_glm, viz_grid_base, type = "prob")
+```
+
+Gradient boosted Tree
+
+```{r}
+set.seed(1234)
+xgb_base_glm <- caret::train(outcome ~ x1 + x2 + x3 + x4 + v1 + v2 + v3 + v4 + v5 + m,
+                            data = df,
+                            method = "xgbTree",
+                            metric = my_metric,
+                      trControl = my_ctrl)
+```
+
+
+```{r}
+set.seed(1234)
+xgb_expanded_glm <- caret::train(outcome ~ x1  + x3 + x4  + v2 + v3 + v4 + v5 + m + w + z + t + x5,
+                            data = df,
+                            method = "xgbTree",
+                            metric = my_metric,
+                      trControl = my_ctrl)
+```
+
+
+```{r}
+xgb_expanded_glm
+```
+
+```{r}
+xgb_expanded_glm %>% readr::write_rds("best_mod_class.rds")
+```
+
+
+```{r}
+plot(xTrans = log, xgb_base_glm)
+plot(xTrans = log, xgb_expanded_glm)
+```
+
+```{r}
+plot(varImp(xgb_base_glm))
+plot(varImp(xgb_expanded_glm))
+```
+
+```{r}
+predict(xgb_base_glm, viz_grid_base, type = 'prob')
+predict(xgb_expanded_glm, viz_grid_expanded, type = 'prob')
+```
+
+
+MARS
+
+```{r}
+marsGrid <- expand.grid(
+  degree = 1:3, 
+  nprune = seq(2, 100, length.out = 10) %>% floor()
+  )
+```
+
+```{r}
+mars_base_glm<- caret::train(outcome ~ x1 + x2 + x3 + x4  + v1 + v2 + v3 + v4 + v5 + m,
+                            data = df,
+                            method = "earth", 
+                            tuneGrid = marsGrid,
+                            preProcess = c("center", "scale"),
+                            metric = my_metric,
+                            trControl = my_ctrl)
+
+```
+
+
+```{r}
+mars_expanded_glm<- caret::train(outcome ~ x1  + x3 + x4  + v2 + v3 + v4 + v5 + m + w + z + t + x5,
+                            data = df,
+                            method = "earth", 
+                            tuneGrid = marsGrid,
+                            preProcess = c("center", "scale"),
+                            metric = my_metric,
+                            trControl = my_ctrl)
+
+```
+
+
+```{r}
+mars_expanded_glm
+```
+
+```{r}
+plot(xTrans = log, mars_base_glm)
+plot(xTrans = log, mars_expanded_glm)
+```
+
+```{r}
+plot(varImp(mars_base_glm))
+plot(varImp(mars_expanded_glm))
+```
+
+```{r}
+print(mars_base_glm$bestTune)
+print(mars_expanded_glm$bestTune)
+```
+
+
+```{r}
+predict(mars_base_glm, viz_grid_base, type = 'prob')
+predict(mars_expanded_glm, viz_grid_expanded, type = 'prob')
+```
+
+
+KNN's 
+
+```{r}
+knnGrid <- expand.grid(
+  k = 1:10)
+```
+
+```{r}
+set.seed(3333)
+knn_base_glm <- caret::train(outcome ~ x1 + x2 + x3 + x4  + v1 + v2 + v3 + v4 + v5 + m,
+                            data = df,
+                            method = "knn", 
+                            preProcess = c("center", "scale"),
+                            metric = my_metric,
+                            trControl = my_ctrl,
+                        tuneGrid = knnGrid)
+```
+
+
+
+```{r}
+set.seed(3333)
+knn_expanded_glm <- caret::train(outcome ~ x1  + x3 + x4  + v2 + v3 + v4 + v5 + m + w + z + t + x5,
+                            data = df,
+                            method = "knn", 
+                            preProcess = c("center", "scale"),
+                            metric = my_metric,
+                            trControl = my_ctrl,
+                        tuneGrid = knnGrid)
+```
+
+
+```{r}
+knn_expanded_glm
+```
+
+
+```{r}
+plot(xTrans = log, knn_base_glm)
+plot(xTrans = log, knn_expanded_glm)
+```
+
+
+```{r}
+print(knn_base_glm$bestTune)
+print(knn_expanded_glm$bestTune)
+```
+
+
+```{r}
+predict(knn_base_glm, viz_grid_base, type = 'prob')
+predict(knn_expanded_glm, viz_grid_expanded, type = 'prob')
+```
+
+
+

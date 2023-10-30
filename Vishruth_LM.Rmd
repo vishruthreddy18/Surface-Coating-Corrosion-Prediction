@@ -1,0 +1,465 @@
+---
+title: "Linear Modelling"
+author: "Vishruth Reddy"
+date: "2022-12-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, load_tidyverse}
+library(tidyverse)
+```
+
+```{r, read_final_data}
+df <- readr::read_csv("fall2022_finalproject.csv", col_names = TRUE)
+```
+
+```{r, show_data_glimpse}
+df %>% glimpse()
+```
+
+```{r, show_derived_features}
+df <- df %>% 
+  mutate(x5 = 1 - (x1 + x2 + x3 + x4),
+         w = x2 / (x3 + x4),
+         z = (x1 + x2) / (x5 + x4),
+         t = v1 * v2) %>% 
+  glimpse()
+```
+
+```{r, show_logit_transform}
+df <- df %>% 
+  mutate(y = boot::logit(output)) %>% 
+  glimpse()
+```
+
+```{r, show_binary_outcome}
+df <- df %>% 
+  mutate(outcome = ifelse(output < 0.33, 'event', 'non_event'),
+         outcome = factor(outcome, levels = c("event", "non_event"))) %>% 
+  glimpse()
+```
+
+
+```{r}
+df <- df %>% 
+  mutate(outcome_num = ifelse(outcome == 'event', 1, 0)) %>%
+  glimpse()
+```
+
+
+```{r}
+df
+```
+
+```{r, fit_mod01}
+mod01 <- lm( y ~ x1 + x2 + x3 + x4 + v1 + v2 + v3 + v4 + v5 + m , data = df )
+
+```
+
+```{r}
+mod02 <- lm( y ~ m:(x1 + x2 + x3 + x4 + v1 + v2 + v3 + v4 + v5 ) , data = df )
+
+```
+
+```{r}
+mod03 <- lm( y ~ (x1  + x2 + x3 + x4 + v1 + v2 + v3 + v4 + v5 )^2  , data = df )
+
+```
+
+```{r}
+mod04 <- lm( y ~  x1 + x3 + x4  + v2 + v3 + v4 + v5 + m + w + z + t + x5  , data = df )
+
+```
+
+```{r}
+mod05 <- lm( y ~ m:(x1 + x3 + x4  + v2 + v3 + v4 + v5 + m + w + z + t + x5)  , data = df )
+
+```
+
+```{r}
+mod06 <- lm( y ~ (x1  + x3 + x4 + v2 + v3 + v4 + v5 + w + z + t + x5)^2  , data = df )
+```
+
+```{r}
+mod07 <- lm( y ~ x1 + x2 + x3 + x4 , data = df )
+```
+
+```{r}
+mod08 <- lm( y ~ v1 + v2 + v3 + v4 + v5  , data = df )
+```
+
+```{r}
+mod09 <- lm( y ~ splines::ns(z , 3) * (x5 + w + t ) , data = df )
+```
+
+Training set RMSE 
+
+```{r}
+rmse1 <- modelr :: rmse(mod01, df)
+rmse2 <- modelr :: rmse(mod02, df)
+rmse3 <- modelr :: rmse(mod03, df)
+rmse4 <- modelr :: rmse(mod04, df)
+rmse5 <- modelr :: rmse(mod05, df)
+rmse6 <- modelr :: rmse(mod06, df)
+rmse7 <- modelr :: rmse(mod07, df)
+rmse8 <- modelr :: rmse(mod08, df)
+rmse9 <- modelr :: rmse(mod09, df)
+
+rmse1
+rmse2
+rmse3
+rmse4
+rmse5
+rmse6
+rmse7
+rmse8
+rmse9
+```
+
+Training set AIC/BIC/R squared
+
+```{r}
+broom :: glance(mod01)
+broom :: glance(mod02)
+broom :: glance(mod03)
+broom :: glance(mod04)
+broom :: glance(mod05)
+broom :: glance(mod06)
+broom :: glance(mod07)
+broom :: glance(mod08)
+broom :: glance(mod09)
+```
+How do the coefficient summaries compare between the top 3 models? 
+
+They are pretty much similar. The coefficients related to v1, v2, v3, v4, v5 are mostly zero while coefficients related w, z, x5 are non zero.
+
+Which inputs seem important?
+
+Since the coefficients of x5, w, z seem to be non-zero these inputs seem important.
+
+
+What performance metric did you use to make your selection?
+R squared, AIC, BIC
+
+
+```{r}
+coefplot::coefplot(mod06)
+coefplot::coefplot(mod09)
+coefplot::coefplot(mod04)
+```
+
+What performance metric did you use to make your selection?
+R squared, AIC, BIC
+
+How do the coefficient summaries compare between the top 3 models? 
+
+Significance
+
+mod8:
+
+Which inputs seem important?
+
+Bayesian Linear Models
+
+```{r}
+bayes_lm_mod1_mat <- model.matrix( y ~ splines::ns(z , 3) * (t  + w + x5) , data = df)
+dim(bayes_lm_mod1_mat)
+bayes_lm_mod2_mat <- model.matrix( y ~ (x1  + x3 + x4 + v2 + v3 + v4 + v5 + w + z + t + x5)^2 , data = df)
+dim(bayes_lm_mod2_mat)
+```
+
+```{r}
+prior_info_lm_mod1 <- list(
+  yobs = df$y,
+  design_matrix = bayes_lm_mod1_mat,
+  mu_beta = 0 ,
+  tau_beta = 2,
+  sigma_rate =1 
+)
+
+prior_info_lm_mod2 <- list(
+  yobs = df$y,
+  design_matrix = bayes_lm_mod2_mat,
+  mu_beta = 0 ,
+  tau_beta = 2,
+  sigma_rate =1 
+)
+```
+
+```{r}
+lm_logpost <- function(unknowns, my_info)
+{
+  length_beta <- ncol(my_info$design_matrix)
+  
+  beta_v <- unknowns[1:length_beta]
+  
+  lik_varphi <- unknowns[length_beta + 1]
+  
+  lik_sigma <- exp(lik_varphi)
+  
+  X <-  my_info$design_matrix
+
+  mu <- as.vector(X %*% as.matrix(beta_v))
+
+  log_lik <- sum(dnorm(x = my_info$yobs,
+                       mean = mu,
+                       sd = lik_sigma,
+                       log = TRUE))
+  
+  
+  log_prior_beta <-  sum(dnorm(x = beta_v,
+                              mean = my_info$mu_beta,
+                              sd = my_info$tau_beta,
+                              log = TRUE))
+  
+   log_prior_sigma <- dexp(x = lik_sigma,
+                          rate = my_info$sigma_rate,
+                          log = TRUE)
+  
+  log_prior <- log_prior_beta + log_prior_sigma
+  
+  log_derive_adjust <- lik_varphi
+  
+  log_lik + log_prior + log_derive_adjust
+  
+}
+```
+
+```{r}
+print(lm_logpost(rep (-1, ncol(bayes_lm_mod1_mat)+1), prior_info_lm_mod1))
+print(lm_logpost(rep (1, ncol(bayes_lm_mod1_mat)+1), prior_info_lm_mod1))
+
+print(lm_logpost(rep (-1, ncol(bayes_lm_mod2_mat)+1), prior_info_lm_mod2))
+print(lm_logpost(rep (1, ncol(bayes_lm_mod2_mat)+1), prior_info_lm_mod2))
+```
+
+```{r}
+my_laplace <- function(start_guess, logpost_func, ...)
+{
+  fit <- optim(start_guess,
+               logpost_func,
+               gr = NULL,
+               ...,
+               method = "BFGS",
+               hessian = TRUE,
+               control = list(fnscale = -1, maxit = 1001))
+  
+  mode <- fit$par
+  post_var_matrix <- -solve(fit$hessian)
+  p <- length(mode)
+  int <- p/2 * log(2*pi) + 1/2 * log(det(post_var_matrix)) + logpost_func(mode, ...)
+  list(mode = mode,
+       var_matrix = post_var_matrix,
+       log_evidence = int,
+       converge = ifelse(fit$convergence == 0,
+                         "YES", 
+                         "NO"),
+       iter_counts = as.numeric(fit$counts[1]))
+}
+```
+
+```{r}
+laplace_lm_mod1 <- my_laplace(rep (0, ncol(bayes_lm_mod1_mat)+1), lm_logpost, prior_info_lm_mod1)
+laplace_lm_mod1
+
+laplace_lm_mod2 <- my_laplace(rep (0, ncol(bayes_lm_mod2_mat)+1), lm_logpost, prior_info_lm_mod2)
+laplace_lm_mod2
+```
+
+```{r}
+pos_mode_lm_mod1 <- laplace_lm_mod1$mode
+pos_sd_lm_mod1 <- sqrt(diag(laplace_lm_mod1$var_matrix))
+
+pos_mode_lm_mod1
+pos_sd_lm_mod1
+
+
+pos_mode_lm_mod2 <- laplace_lm_mod2$mode
+pos_sd_lm_mod2 <- sqrt(diag(laplace_lm_mod2$var_matrix))
+
+pos_mode_lm_mod2
+pos_sd_lm_mod2
+```
+
+State why you chose the second model?
+Its the second best performing model.
+
+
+Evaluation
+
+Bayes factor to compare 2 models. laplace_lm_mod2 is better
+
+```{r}
+exp(laplace_lm_mod2$log_evidence - laplace_lm_mod1$log_evidence )
+```
+
+```{r}
+viz_post_coefs <- function(post_means, post_sds, xnames)
+{
+  tibble::tibble(
+    mu = post_means,
+    sd = post_sds,
+    x = xnames
+  ) %>% 
+    mutate(x = factor(x, levels = xnames)) %>% 
+    ggplot(mapping = aes(x = x)) +
+    geom_hline(yintercept = 0, color = 'grey', linetype = 'dashed') +
+    geom_point(mapping = aes(y = mu)) +
+    geom_linerange(mapping = aes(ymin = mu - 2 * sd,
+                                 ymax = mu + 2 * sd,
+                                 group = x)) +
+    labs(x = 'feature', y = 'coefficient value') +
+    coord_flip() +
+    theme_bw()
+}
+
+```
+
+```{r}
+viz_post_coefs(laplace_lm_mod2$mode[1:ncol(bayes_lm_mod2_mat)], sqrt(diag(laplace_lm_mod2$var_matrix))[1:ncol(bayes_lm_mod2_mat)], colnames(bayes_lm_mod2_mat))
+```
+
+#best model  using bayes factor.
+#best model  using AIC/BIC linear models
+
+
+
+Linear Models Predictions
+
+For non bayesian linear model 
+
+```{r}
+viz_grid_lm <- expand.grid(x1 = seq(from=min(df$x1),to=max(df$x1),length.out=101),
+                        x3 = seq(from=min(df$x3),to=max(df$x3),length.out=6),
+                        x4 = median(df$x4),
+                        v2 = median(df$v2),
+                        v3 = median(df$v3),
+                        v4 = median(df$v4),
+                        v5 = median(df$v5),
+                        w = median(df$w),
+                        z = median(df$z),
+                        t = median(df$t),
+                        x5 = median(df$x5),
+                        KEEP.OUT.ATTRS = FALSE,
+                        stringsAsFactors = FALSE) %>% 
+  as.data.frame() %>% tibble::as_tibble()
+```
+
+```{r}
+tidy_predict <- function(mod, xnew)
+{
+  pred_df <- predict(mod, xnew, interval = "confidence") %>% 
+    as.data.frame() %>% tibble::as_tibble() %>% 
+    dplyr::select(pred = fit, ci_lwr = lwr, ci_upr = upr) %>% 
+    bind_cols(predict(mod, xnew, interval = 'prediction') %>% 
+                as.data.frame() %>% tibble::as_tibble() %>% 
+                dplyr::select(pred_lwr = lwr, pred_upr = upr))
+  
+  xnew %>% bind_cols(pred_df)
+}
+```
+
+```{r}
+pred_lm_06 <- tidy_predict(mod06,viz_grid_lm)
+```
+
+```{r}
+pred_lm_06 %>% ggplot( mapping = aes(x = x1)) + geom_ribbon( mapping = aes(ymin = pred_lwr , ymax = pred_upr), fill = 'orange') + geom_ribbon( mapping = aes( ymin = ci_lwr, ymax = ci_upr), fill = 'grey') + geom_line( mapping = aes(y = pred))  + facet_wrap(~x3) + coord_cartesian((ylim = c(-1,1)))
+```
+
+For Bayesian best model : laplace_lm_mod2
+
+```{r}
+generate_lm_post_samples <- function(mvn_result, length_beta, num_samples)
+{
+  MASS::mvrnorm(n = num_samples,
+                mu = mvn_result$mode,
+                Sigma = mvn_result$var_matrix) %>% 
+    as.data.frame() %>% tibble::as_tibble() %>% 
+    purrr::set_names(c(sprintf("beta_%02d", 0:(length_beta-1)), "varphi")) %>% 
+    mutate(sigma = exp(varphi))
+}
+```
+
+```{r}
+post_lm_pred_samples <- function(Xnew, Bmat, sigma_vector)
+{
+  M <- nrow(Xnew)
+  S <- nrow(Bmat)
+  
+  Umat <- Xnew %*% t(Bmat)
+  
+  Rmat <- matrix(rep(sigma_vector, M), nrow(Xnew) , byrow = TRUE)
+  
+  Zmat <- matrix(rnorm(M*S), nrow(Xnew) , byrow = TRUE)
+
+  Ymat <- Umat + Rmat * Zmat
+ 
+  list(Umat = Umat, Ymat = Ymat)
+}
+```
+
+```{r}
+make_post_lm_pred <- function(Xnew, post)
+{
+  Bmat <- post %>% dplyr::select(starts_with("beta")) %>% as.matrix()
+  
+  sigma_vector <- post %>% pull(sigma)
+  
+  post_lm_pred_samples(Xnew, Bmat, sigma_vector)
+}
+```
+
+```{r}
+summarize_lm_pred_from_laplace <- function(mvn_result, Xtest, num_samples)
+{
+  post <- generate_lm_post_samples(mvn_result, ncol(Xtest), num_samples)
+
+  pred_test <- make_post_lm_pred(Xtest, post)
+  
+  mu_avg <- rowMeans(pred_test$Umat)
+  y_avg <- rowMeans(pred_test$Ymat)
+  
+  mu_lwr <- apply(pred_test$Umat, 1, stats::quantile, probs = 0.025)
+  mu_upr <- apply(pred_test$Umat, 1, stats::quantile, probs = 0.975)
+  y_lwr <- apply(pred_test$Ymat, 1, stats::quantile, probs = 0.025)
+  y_upr <- apply(pred_test$Ymat, 1, stats::quantile, probs = 0.975)
+  
+  tibble::tibble(
+    mu_avg = mu_avg,
+    mu_lwr = mu_lwr,
+    mu_upr = mu_upr,
+    y_avg = y_avg,
+    y_lwr = y_lwr,
+    y_upr = y_upr
+  ) %>% 
+    tibble::rowid_to_column("pred_id")
+}
+```
+
+```{r}
+bayes_best <- model.matrix( ~ (x1  + x3 + x4 + v2 + v3 + v4 + v5 + w + z + t + x5)^2 , data = viz_grid_lm)
+```
+
+```{r}
+post_pred_summary_bayes_best  <- summarize_lm_pred_from_laplace(laplace_lm_mod2, bayes_best, 5000)
+```
+
+```{r}
+viz_grid_lm
+```
+
+```{r}
+post_pred_summary_bayes_best %>% 
+  left_join(viz_grid_lm %>% tibble::rowid_to_column("pred_id"),
+            by = 'pred_id') %>%
+   ggplot(mapping = aes(x = x1)) + 
+  geom_ribbon( mapping = aes(ymin = y_lwr , ymax = y_upr), fill = 'orange') + geom_ribbon( mapping = aes( ymin = mu_lwr, ymax = mu_upr), fill = 'grey') + geom_line( mapping = aes(y = mu_avg))  + 
+  facet_wrap(~x3) + 
+  coord_cartesian((ylim = c(-0.6,0.6))) 
+```
+Analysis of prediction intervals: The prediction and confidence intervals are different in both cases. In one case the confidence interval is wider than the other.

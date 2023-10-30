@@ -1,0 +1,608 @@
+---
+title: "Exploratory Data Analysis"
+author: "Vishruth Reddy"
+date: "2022-12-12"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, load_tidyverse}
+library(tidyverse)
+```
+
+```{r, read_final_data}
+df <- readr::read_csv("fall2022_finalproject.csv", col_names = TRUE)
+```
+
+```{r, show_data_glimpse}
+df %>% glimpse()
+```
+
+```{r, fit_mod01}
+mod01 <- lm(output ~ x1, data = df)
+```
+
+```{r, show_mod01_summary}
+mod01 %>% summary()
+```
+
+```{r, save_mod01}
+mod01 %>% readr::write_rds("my_simple_example_model.rds")
+```
+
+```{r, reload_mod01}
+re_load_mod01 <- readr::read_rds("my_simple_example_model.rds")
+```
+
+```{r, show_reload_summary}
+re_load_mod01 %>% summary()
+```
+
+```{r, check_mod01_equal}
+all.equal( mod01, re_load_mod01 )
+```
+
+```{r, show_derived_features}
+df <- df %>% 
+  mutate(x5 = 1 - (x1 + x2 + x3 + x4),
+         w = x2 / (x3 + x4),
+         z = (x1 + x2) / (x5 + x4),
+         t = v1 * v2) %>% 
+  glimpse()
+```
+
+```{r, show_logit_transform}
+df <- df %>% 
+  mutate(y = boot::logit(output)) %>% 
+  glimpse()
+```
+
+```{r}
+df %>% ggplot(mapping= aes(x = m)) + geom_bar()
+# almost similar counts not much difference. 
+```
+
+```{r}
+drops <- c("m","y", 'outcome')
+df_ <- df[ , !(names(df) %in% drops)]
+df
+df_ %>% cor()
+corrplot::corrplot(df_  %>% cor())
+
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = x2)) + geom_point()
+cor(df$x1, df$x2)
+df %>% ggplot(mapping = aes(x = x1, y = x3)) + geom_point()
+cor(df$x1, df$x3)
+df %>% ggplot(mapping = aes(x = x1, y = x4)) + geom_point()
+cor(df$x1, df$x4)
+df %>% ggplot(mapping = aes(x = x2, y = x3)) + geom_point()
+cor(df$x2, df$x3)
+df %>% ggplot(mapping = aes(x = x3, y = x4)) + geom_point()
+cor(df$x3, df$x4)
+
+```
+-> As the value of x1 increases, the value of x2 decreases.
+-> x1, x3 no relation as such, extreme values of x1 and x3 don't occur together.
+-> x1, x4 no relation as such
+-> x2, x3 as the value of x2 increases low values of x3 stop occuring
+-> x3, x4 no relation as such
+
+-> No high correlation between x inputs.
+
+```{r}
+df %>% ggplot(mapping = aes(x = v1, y = v2)) + geom_point()
+cor(df$v1, df$v2)
+df %>% ggplot(mapping = aes(x = v1, y = v3)) + geom_point()
+cor(df$v1, df$v3)
+df %>% ggplot(mapping = aes(x = v1, y = v4)) + geom_point()
+cor(df$v1, df$v4)
+df %>% ggplot(mapping = aes(x = v1, y = v5)) + geom_point()
+cor(df$v1, df$v5)
+df %>% ggplot(mapping = aes(x = v2, y = v3)) + geom_point()
+cor(df$v2, df$v3)
+df %>% ggplot(mapping = aes(x = v2, y = v4)) + geom_point()
+cor(df$v2, df$v4)
+df %>% ggplot(mapping = aes(x = v2, y = v5)) + geom_point()
+cor(df$v2, df$v5)
+df %>% ggplot(mapping = aes(x = v3, y = v4)) + geom_point()
+cor(df$v3, df$v4)
+df %>% ggplot(mapping = aes(x = v3, y = v5)) + geom_point()
+cor(df$v3, df$v5)
+df %>% ggplot(mapping = aes(x = v4, y = v5)) + geom_point()
+cor(df$v4, df$v5)
+
+```
+
+-> no correlation between v variables
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = v1)) + geom_point()
+cor(df$x1, df$v1)
+df %>% ggplot(mapping = aes(x = x1, y = v2)) + geom_point()
+cor(df$x1, df$v2)
+df %>% ggplot(mapping = aes(x = x1, y = v3)) + geom_point()
+cor(df$x1, df$v3)
+df %>% ggplot(mapping = aes(x = x1, y = v4)) + geom_point()
+cor(df$x1, df$v4)
+df %>% ggplot(mapping = aes(x = x1, y = v5)) + geom_point()
+cor(df$x1, df$v5)
+
+df %>% ggplot(mapping = aes(x = x2, y = v1)) + geom_point()
+cor(df$x2, df$v1)
+df %>% ggplot(mapping = aes(x = x2, y = v2)) + geom_point()
+cor(df$x2, df$v2)
+df %>% ggplot(mapping = aes(x = x2, y = v3)) + geom_point()
+cor(df$x2, df$v3)
+df %>% ggplot(mapping = aes(x = x2, y = v4)) + geom_point()
+cor(df$x2, df$v4)
+df %>% ggplot(mapping = aes(x = x2, y = v5)) + geom_point()
+cor(df$x2, df$v5)
+
+
+df %>% ggplot(mapping = aes(x = x3, y = v1)) + geom_point()
+cor(df$x3, df$v1)
+df %>% ggplot(mapping = aes(x = x3, y = v2)) + geom_point()
+cor(df$x3, df$v2)
+df %>% ggplot(mapping = aes(x = x3, y = v3)) + geom_point()
+cor(df$x3, df$v3)
+df %>% ggplot(mapping = aes(x = x3, y = v4)) + geom_point()
+cor(df$x3, df$v4)
+df %>% ggplot(mapping = aes(x = x3, y = v5)) + geom_point()
+cor(df$x3, df$v5)
+
+
+df %>% ggplot(mapping = aes(x = x4, y = v1)) + geom_point()
+cor(df$x4, df$v1)
+df %>% ggplot(mapping = aes(x = x4, y = v2)) + geom_point()
+cor(df$x4, df$v2)
+df %>% ggplot(mapping = aes(x = x4, y = v3)) + geom_point()
+cor(df$x4, df$v3)
+df %>% ggplot(mapping = aes(x = x4, y = v4)) + geom_point()
+cor(df$x4, df$v4)
+df %>% ggplot(mapping = aes(x = x4, y = v5)) + geom_point()
+cor(df$x4, df$v5)
+
+```
+
+-> on high values for x2 other variables are less probable.
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = w)) + geom_point()
+cor(df$x1, df$w)
+df %>% ggplot(mapping = aes(x = x2, y = w)) + geom_point()
+cor(df$x2, df$w)
+df %>% ggplot(mapping = aes(x = x3, y = w)) + geom_point()
+cor(df$x3, df$w)
+df %>% ggplot(mapping = aes(x = x4, y = w)) + geom_point()
+cor(df$x4, df$w)
+
+df %>% ggplot(mapping = aes(x = v1, y = w)) + geom_point()
+cor(df$v1, df$w)
+df %>% ggplot(mapping = aes(x = v2, y = w)) + geom_point()
+cor(df$v2, df$w)
+df %>% ggplot(mapping = aes(x = v3, y = w)) + geom_point()
+cor(df$v3, df$w)
+df %>% ggplot(mapping = aes(x = v4, y = w)) + geom_point()
+cor(df$v4, df$w)
+df %>% ggplot(mapping = aes(x = v5, y = w)) + geom_point()
+cor(df$v5, df$w)
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = z)) + geom_point()
+cor(df$x1, df$z)
+df %>% ggplot(mapping = aes(x = x2, y = z)) + geom_point()
+cor(df$x2, df$z)
+df %>% ggplot(mapping = aes(x = x3, y = z)) + geom_point()
+cor(df$x3, df$z)
+df %>% ggplot(mapping = aes(x = x4, y = z)) + geom_point()
+cor(df$x4, df$z)
+
+df %>% ggplot(mapping = aes(x = v1, y = z)) + geom_point()
+cor(df$v1, df$z)
+df %>% ggplot(mapping = aes(x = v2, y = z)) + geom_point()
+cor(df$v2, df$z)
+df %>% ggplot(mapping = aes(x = v3, y = z)) + geom_point()
+cor(df$v3, df$z)
+df %>% ggplot(mapping = aes(x = v4, y = z)) + geom_point()
+cor(df$v4, df$z)
+df %>% ggplot(mapping = aes(x = v5, y = z)) + geom_point()
+cor(df$v5, df$z)
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = t)) + geom_point()
+cor(df$x1, df$t)
+df %>% ggplot(mapping = aes(x = x2, y = t)) + geom_point() 
+cor(df$x2, df$t)
+df %>% ggplot(mapping = aes(x = x3, y = t)) + geom_point() 
+cor(df$x3, df$t)
+df %>% ggplot(mapping = aes(x = x4, y = t)) + geom_point()
+cor(df$x4, df$t)
+
+df %>% ggplot(mapping = aes(x = v1, y = t)) + geom_point()
+cor(df$v1, df$t)
+df %>% ggplot(mapping = aes(x = v2, y = t)) + geom_point()
+cor(df$v2, df$t)
+df %>% ggplot(mapping = aes(x = v3, y = t)) + geom_point()
+cor(df$v3, df$t)
+df %>% ggplot(mapping = aes(x = v4, y = t)) + geom_point()
+cor(df$v4, df$t)
+df %>% ggplot(mapping = aes(x = v5, y = t)) + geom_point()
+cor(df$v5, df$t)
+```
+
+```{r}                                                                                                      
+df %>% ggplot(mapping = aes(x = x1, y = x5)) + geom_point()
+cor(df$x1, df$x5)
+df %>% ggplot(mapping = aes(x = x2, y = x5)) + geom_point() 
+cor(df$x2, df$x5)
+df %>% ggplot(mapping = aes(x = x3, y = x5)) + geom_point()
+cor(df$x3, df$x5)
+df %>% ggplot(mapping = aes(x = x4, y = x5)) + geom_point()
+cor(df$x4, df$x5)
+
+df %>% ggplot(mapping = aes(x = v1, y = x5)) + geom_point()
+cor(df$v1, df$x5)
+df %>% ggplot(mapping = aes(x = v2, y = x5)) + geom_point() 
+cor(df$v2, df$x5)
+df %>% ggplot(mapping = aes(x = v3, y = x5)) + geom_point() 
+cor(df$v3, df$x5)
+df %>% ggplot(mapping = aes(x = v4, y = x5)) + geom_point()
+cor(df$v4, df$x5)
+df %>% ggplot(mapping = aes(x = v5, y = x5)) + geom_point()
+cor(df$v5, df$x5)
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = output)) + geom_point()
+df %>% ggplot(mapping = aes(x = x2, y = output)) + geom_point()
+df %>% ggplot(mapping = aes(x = x3, y = output)) + geom_point()
+df %>% ggplot(mapping = aes(x = x4, y = output)) + geom_point()
+
+df %>% ggplot(mapping = aes(x = v1, y = output)) + geom_point()
+df %>% ggplot(mapping = aes(x = v2, y = output)) + geom_point()
+df %>% ggplot(mapping = aes(x = v3, y = output)) + geom_point()
+df %>% ggplot(mapping = aes(x = v4, y = output)) + geom_point()
+df %>% ggplot(mapping = aes(x = v5, y = output)) + geom_point()
+
+df %>% ggplot(mapping = aes(x = x5, y = output)) + geom_point()
+df %>% ggplot(mapping = aes(x = w, y = output)) + geom_point()
+df %>% ggplot(mapping = aes(x = z, y = output)) + geom_point()
+df %>% ggplot(mapping = aes(x = t, y = output)) + geom_point()
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = y)) + geom_point()
+df %>% ggplot(mapping = aes(x = x2, y = y)) + geom_point()
+df %>% ggplot(mapping = aes(x = x3, y = y)) + geom_point()
+df %>% ggplot(mapping = aes(x = x4, y = y)) + geom_point()
+
+df %>% ggplot(mapping = aes(x = v1, y = y)) + geom_point()
+df %>% ggplot(mapping = aes(x = v2, y = y)) + geom_point()
+df %>% ggplot(mapping = aes(x = v3, y = y)) + geom_point()
+df %>% ggplot(mapping = aes(x = v4, y = y)) + geom_point()
+df %>% ggplot(mapping = aes(x = v5, y = y)) + geom_point()
+
+df %>% ggplot(mapping = aes(x = x5, y = y)) + geom_point()
+df %>% ggplot(mapping = aes(x = w, y = y)) + geom_point()
+df %>% ggplot(mapping = aes(x = z, y = y)) + geom_point()
+df %>% ggplot(mapping = aes(x = t, y = y)) + geom_point()
+```
+
+```{r}
+df%>%
+  ggplot(mapping=aes(x = v1))+
+  geom_histogram()
+
+df%>%
+  ggplot(mapping=aes(x = v2))+
+  geom_histogram()
+
+df%>%
+  ggplot(mapping=aes(x = v3))+
+  geom_histogram()
+
+df%>%
+  ggplot(mapping=aes(x = v4))+
+  geom_histogram()
+
+df%>%
+  ggplot(mapping=aes(x = v5))+
+  geom_histogram()
+```
+
+```{r}
+df%>%
+  ggplot(mapping=aes(x = x1))+
+  geom_histogram()
+
+df%>%
+  ggplot(mapping=aes(x = x2))+
+  geom_histogram()
+
+df%>%
+  ggplot(mapping=aes(x = x3))+
+  geom_histogram()
+
+df%>%
+  ggplot(mapping=aes(x = x4))+
+  geom_histogram()
+
+df%>%
+  ggplot(mapping=aes(x = x5))+
+  geom_histogram()
+```
+
+```{r}
+df%>%
+  ggplot(mapping=aes(x = w))+
+  geom_histogram()
+
+
+df%>%
+  ggplot(mapping=aes(x = z))+
+  geom_histogram()
+
+
+df%>%
+  ggplot(mapping=aes(x = t))+
+  geom_histogram()
+```
+
+```{r}
+df%>%
+  ggplot(mapping=aes(x = output))+
+  geom_histogram()
+
+df%>%
+  ggplot(mapping=aes(x = y))+
+  geom_histogram()
+```
+
+```{r, show_binary_outcome}
+df <- df %>% 
+  mutate(outcome = ifelse(output < 0.33, 'event', 'non_event'),
+         outcome = factor(outcome, levels = c("event", "non_event"))) %>% 
+  glimpse()
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = x2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x1, y = x3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x1, y = x4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x2, y = x3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x2, y = x4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x3, y = x4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) 
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = v1, y = v2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v1, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v1, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v1, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+
+
+df %>% ggplot(mapping = aes(x = v2, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v2, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v2, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+
+
+df %>% ggplot(mapping = aes(x = v3, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v3, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+
+
+df %>% ggplot(mapping = aes(x = v4, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x2, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x3, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x4, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+
+
+df %>% ggplot(mapping = aes(x = v1, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v2, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v3, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v4, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v5, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+```
+
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x2, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x3, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x4, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+
+
+df %>% ggplot(mapping = aes(x = v1, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v2, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v3, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v4, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v5, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x2, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x3, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x4, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+
+
+df %>% ggplot(mapping = aes(x = v1, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v2, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v3, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v4, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v5, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+```
+
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x2, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x3, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x4, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+
+
+df %>% ggplot(mapping = aes(x = v1, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v2, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v3, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v4, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = v5, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = v1, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x1, y = v2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x1, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x1, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x1, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+
+
+df %>% ggplot(mapping = aes(x = x2, y = v1, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x2, y = v2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x2, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x2, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x2, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+
+
+df %>% ggplot(mapping = aes(x = x3, y = v1, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x3, y = v2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x3, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x3, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x3, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+
+
+df %>% ggplot(mapping = aes(x = x4, y = v1, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x4, y = v2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x4, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x4, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+df %>% ggplot(mapping = aes(x = x4, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3)
+```
+
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = x2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x1, y = x3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x1, y = x4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x2, y = x3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x2, y = x4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x3, y = x4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = v1, y = v2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v1, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v1, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v1, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+
+
+df %>% ggplot(mapping = aes(x = v2, y = x3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v2, y = x4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v2, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+
+
+df %>% ggplot(mapping = aes(x = v3, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v3, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+
+df %>% ggplot(mapping = aes(x = v4, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+```
+
+
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x2, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x3, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x4, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+
+
+df %>% ggplot(mapping = aes(x = v1, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v2, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v3, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v4, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v5, y = x5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+```
+
+
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x2, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x3, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x4, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+
+
+df %>% ggplot(mapping = aes(x = v1, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v2, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v3, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v4, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v5, y = w, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x2, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x3, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x4, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+
+
+df %>% ggplot(mapping = aes(x = v1, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v2, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v3, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v4, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v5, y = z, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+```
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x2, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x3, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x4, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+
+
+df %>% ggplot(mapping = aes(x = v1, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v2, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v3, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v4, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = v5, y = t, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+```
+
+
+```{r}
+df %>% ggplot(mapping = aes(x = x1, y = v1, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x1, y = v2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x1, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x1, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x1, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+
+
+df %>% ggplot(mapping = aes(x = x2, y = v1, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x2, y = v2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x2, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x2, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x2, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+
+
+df %>% ggplot(mapping = aes(x = x3, y = v1, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x3, y = v2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x3, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x3, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x3, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+
+
+df %>% ggplot(mapping = aes(x = x4, y = v1, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x4, y = v2, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x4, y = v3, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x4, y = v4, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+df %>% ggplot(mapping = aes(x = x4, y = v5, color = as.factor(outcome), shape = as.factor(outcome))) + geom_point(size = 3) + facet_wrap(~m)
+```
